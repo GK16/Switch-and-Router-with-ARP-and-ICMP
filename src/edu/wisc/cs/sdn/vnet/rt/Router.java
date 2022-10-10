@@ -5,6 +5,10 @@ import edu.wisc.cs.sdn.vnet.DumpFile;
 import edu.wisc.cs.sdn.vnet.Iface;
 
 import net.floodlightcontroller.packet.Ethernet;
+import net.floodlightcontroller.packet.IPacket;
+import net.floodlightcontroller.packet.IPv4;
+import net.floodlightcontroller.packet.MACAddress;
+import java.util.*;
 
 /**
  * @author Aaron Gember-Jacobson and Anubhavnidhi Abhashkumar
@@ -84,7 +88,65 @@ public class Router extends Device
 		
 		/********************************************************************/
 		/* TODO: Handle packets                                             */
-		
+
+		// 1. check Ethernet frame type
+		if(etherPacket.getEtherType() != Ethernet.TYPE_IPv4){
+			System.out.println("not a IPV4 packet, drop it");
+			return;
+		}
+
+		// 2. get IPv4 packet payload
+		IPv4 header = (IPv4) etherPacket.getPayload();
+
+		// 3. check the checksum
+		short prevCksum = header.getChecksum();
+		header.resetChecksum();
+		// 3.1. borrow code from the serialize() method in the IPv4 class to compute the checksum.
+		//      if checksum == 0, serialize() will compute checksum
+		header.serialize();
+		short newCksum = header.getChecksum();
+		// 3.2. check
+		if(prevCksum != newCksum){
+			System.out.println("checksum did not match, drop it");
+			return;
+		}
+
+		// 4. handle Time-to-Live
+		byte oldTtl = header.getTtl();
+		header.setTtl((byte) (oldTtl - 1)); // decrement
+		if(header.getTtl() == 0){
+			System.out.println("TTL equals 0, time to die");
+			return;
+		}
+		// 4.1. update checkout after TTL decrement
+		header.resetChecksum();
+		header.serialize();
+
+		// 5. determine whether the packet is destined for one of the router’s interfaces.
+		Collection<Iface> ifaces = this.getInterfaces().values();
+		for(Iface i: ifaces){
+			if(i.getIpAddress() == header.getDestinationAddress()){
+				System.out.println("packet’s destination IP address exactly matches one of the interface’s IP addresses, drop it");
+				return;
+			}
+		}
+
+		// 6. Forward the packet
+		RouteEntry route = routeTable.lookup(header.getDestinationAddress());
+		// 6.1 check if route exists
+		if(route == null){
+			System.out.println("No matching route, drop it");
+			return;
+		}
+		// 6.2 obtain & set the new MAC address
+		ArpEntry arpEntry = arpCache.lookup(route.getDestinationAddress());
+		MACAddress newMacAddr = arpEntry.getMac();
+		MACAddress sourMacAddr = route.getInterface().getMacAddress();
+		etherPacket.setSourceMACAddress(sourMacAddr.toString());
+		etherPacket.setDestinationMACAddress(newMacAddr.toString());
+		// 6.3 send packet
+		boolean res = this.sendPacket(etherPacket, route.getInterface());
+		System.out.println("Forwarding " + (res ? "successed!" : "failed!"));
 		
 		/********************************************************************/
 	}

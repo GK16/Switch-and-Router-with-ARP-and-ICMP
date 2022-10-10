@@ -12,7 +12,19 @@ import java.util.*;
  */
 public class Switch extends Device
 {
+	/**
+	 * forward table which contains learnt record
+	 * key: MAC Address
+	 * value: Interface
+	 */
 	private HashMap<MACAddress, Iface> table = new HashMap<>();
+
+	/**
+	 * time table which contains time limit
+	 * key: MAC Address
+	 * long: time left
+	 */
+	private HashMap<MACAddress, Long> timeLimits = new HashMap<>();
 
 	/**
 	 * Creates a router for a specific host.
@@ -36,28 +48,38 @@ public class Switch extends Device
 		/********************************************************************/
 		/* TODO: Handle packets                                             */
 
-		// 1. update the forword table
+		// 1. update the forward table and expired time
 		MACAddress macAddress = etherPacket.getSourceMAC();
 		table.put(macAddress, inIface);
+		timeLimits.put(macAddress, System.currentTimeMillis());
 
 		// 2. find MAC Address of the destination
 		MACAddress destAddress = etherPacket.getDestinationMAC();
 
-		// 2.1. if found in the table, forward
-		if(table.containsKey(destAddress)){
-			Iface destIface = table.get(destAddress);
-			this.sendPacket(etherPacket, destIface);
-			System.out.println("Found in Table. Sent packet to " + destAddress.toString());
+		// 2.1. if found in the table
+		if(table.containsKey(destAddress) && timeLimits.containsKey(destAddress)){
+			long timeSince = System.currentTimeMillis() - timeLimits.get(destAddress);
+			// if the record is still valid, send it.
+			if(timeSince < 15000){
+				Iface destIface = table.get(destAddress);
+				this.sendPacket(etherPacket, destIface);
+				System.out.println("Found in Table. "+ String.valueOf(timeSince) +" ms since it updated.");
+				System.out.println("Sent packet to " + destAddress.toString());
+				return;
+			}
+			// if he record expired, remove the record.
+			table.remove(destAddress);
+			timeLimits.remove(destAddress);
+			System.out.println("Found but expired.");
 		}
 
-		// 2.2. if not found in the table, boadcast
-		else {
-			Collection<Iface> interfaces = this.getInterfaces().values();
-			for (Iface i : interfaces) {
-				if (!i.equals(inIface)) this.sendPacket(etherPacket, i);
-			}
-			System.out.println("did not find in table. Boadcast.");
+		// 2.2. if not found in the table or expired, boadcast
+		Collection<Iface> interfaces = this.getInterfaces().values();
+		for (Iface i : interfaces) {
+			if (!i.equals(inIface)) this.sendPacket(etherPacket, i);
 		}
+		System.out.println("Boadcasted.");
+
 		
 		/********************************************************************/
 	}

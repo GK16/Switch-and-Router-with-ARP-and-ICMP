@@ -40,16 +40,33 @@ public class RouteTable
 			/*****************************************************************/
 			/* TODO: Find the route entry with the longest prefix match      */
 			// traverse entries to look up
-			int dist = 0;
-			RouteEntry res = null;
-			for(RouteEntry entry : entries){
-				int maskAddr = entry.getMaskAddress();
-				if((maskAddr & ip) > dist) {
-					dist = maskAddr & ip;
-					res = entry;
+//			int dist = 0;
+//			RouteEntry res = null;
+//			for(RouteEntry entry : entries){
+//				int maskAddr = entry.getMaskAddress();
+//				if((maskAddr & ip) > dist) {
+//					dist = maskAddr & ip;
+//					res = entry;
+//				}
+//			}
+//			return res;
+
+			int longestMatchingLength = -1;
+			RouteEntry result = null;
+			for (RouteEntry entry : entries){
+				int subnetMask = entry.getMaskAddress();
+				int destAddress = entry.getDestinationAddress();
+				if ((destAddress & subnetMask) != (ip & subnetMask)) {
+					continue; // not in the same subnet
+				}
+				System.out.println("entry: "+ entry);
+				int currentMatchingLength = Integer.bitCount(subnetMask);
+				if (currentMatchingLength > longestMatchingLength) {
+					longestMatchingLength = currentMatchingLength;
+					result = entry;
 				}
 			}
-			return res;
+			return result;
 			
 			/*****************************************************************/
         }

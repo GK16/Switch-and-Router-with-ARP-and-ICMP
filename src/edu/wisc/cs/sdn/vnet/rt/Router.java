@@ -151,5 +151,78 @@ public class Router extends Device
 		/********************************************************************/
 	}
 
-	private
+	private MACAddress findNextHopMACAddress(int DestIP){
+		// 1. loop up the routeTable
+		RouteEntry routeEntry = this.routeTable.lookup(DestIP);
+		if(!routeEntry){
+			System.err.println("No match Dest IP in routeTable.");
+			return;
+		}
+		// 2. get the next hop IP address
+		int nextHopIP = routeEntry.getGatewayAddress();
+		if(!nextHopIP){
+			nextHopIP = ipPacket.getSourceAddress();
+		}
+		// 3. find next hop MAC address from arpCache
+		ArpEntry arpEntry = this.arpCache.lookup(nextHopIP);
+		if(!arpEntry){
+			System.err.println("ICMP: no nuch IP in arpCache");
+			return;
+		};
+		return arpEntry.getMac();
+	}
+
+	private sendICMPPacket(byte type, byte code, Iface iface, IPv4 ipPacket){
+		// 1. set Ethernet header
+		Ethernet ether = new Ethernet();
+		// 1.1. set EtherType
+		ether.setEtherType(Ethernet.TYPE_IPv4);
+		// 1.2. set Source MAC to the MAC address of the out interface
+		ether.setSourceMACAddress(iface.getMacAddress().toBytes());
+		// 1.3. set Destination MAC: set to the MAC address of the next hop
+		int DestIP = ipPacket.getSourceAddress();
+		MACAddress nextHopMacAddr = findNextHopMACAddress(DestIP);
+		ether.setDestinationMACAddress(arpEntry.getMac().toBytes());
+
+		// 2. set IP header
+		IPv4 ip = new IPv4();
+		// 2.1. TTL—setto64
+		ip.setTtl((byte) 64);
+		// 2.2. Protocol — set to IPv4.PROTOCOL_ICMP
+		ip.setProtocol(IPv4.PROTOCOL_ICMP);
+		// 2.3. Source IP — set to the IP address of the interface on which the original packet arrived
+		ip.setSourceAddress(iface.getIpAddress());
+		// 2.4. Destination IP — set to the source IP of the original packet
+		ip.setDestinationAddress(ipPacket.getSourceAddress());
+
+		// 3. set ICMP header
+		ICMP icmp = new ICMP();
+		// 3.1. set ICMP type
+		icmp.setIcmpType(type);
+		// 3.2. set ICMP code
+		icmp.setIcmpCode(code);
+
+		// 4. assemble the ICMP payload
+		Data data = new Data();
+		// 4.1. construct byteArray
+		int origialIPHeaderLength = ipPacket.getHeaderLength() * 4;
+		byte[] byteArray = new byte[4 + origialIPHeaderLength + 8];
+		// 4.2. copy bytes from IpPacket
+		byte[] serializedIpPacket = ipPacket.serialize();
+		int serializedIpPacketLen = serializedIpPacket.length
+		for(int i = 0; i < origialIPHeaderLength + 8; i++){
+			if (i < serializedIpPacketLen) byteArray[4 + i] = serializedIpPacket[i];
+			else break
+		}
+
+		// 5. assemble the ICMP Packet
+		data.setData(byteArray)
+		icmp.setPayload(data);
+		ip.setPayload(icmp);
+		ether.setPayload(ip);
+
+		// 6. send ICMP Packet
+		this.sendPacket(ether, iface);
+	}
+
 }

@@ -8,6 +8,8 @@ import net.floodlightcontroller.packet.Ethernet;
 import net.floodlightcontroller.packet.IPacket;
 import net.floodlightcontroller.packet.IPv4;
 import net.floodlightcontroller.packet.MACAddress;
+import net.floodlightcontroller.packet.Data;
+import net.floodlightcontroller.packet.ICMP;
 import java.util.*;
 
 /**
@@ -135,7 +137,7 @@ public class Router extends Device
 		RouteEntry route = routeTable.lookup(header.getDestinationAddress());
 		// 6.1 check if route exists
 		if(route == null){
-			Systcem.out.println("No matching route, drop it");
+			System.out.println("No matching route, drop it");
 			return;
 		}
 		// 6.2 obtain & set the new MAC address
@@ -154,25 +156,25 @@ public class Router extends Device
 	private MACAddress findNextHopMACAddress(int DestIP){
 		// 1. loop up the routeTable
 		RouteEntry routeEntry = this.routeTable.lookup(DestIP);
-		if(!routeEntry){
+		if(routeEntry == null){
 			System.err.println("No match Dest IP in routeTable.");
-			return;
+			return null;
 		}
 		// 2. get the next hop IP address
 		int nextHopIP = routeEntry.getGatewayAddress();
-		if(!nextHopIP){
-			nextHopIP = ipPacket.getSourceAddress();
+		if(nextHopIP == 0){
+			nextHopIP = DestIP;
 		}
 		// 3. find next hop MAC address from arpCache
 		ArpEntry arpEntry = this.arpCache.lookup(nextHopIP);
-		if(!arpEntry){
+		if(arpEntry == null){
 			System.err.println("ICMP: no nuch IP in arpCache");
-			return;
+			return null;
 		};
 		return arpEntry.getMac();
 	}
 
-	private sendICMPPacket(byte type, byte code, Iface iface, IPv4 ipPacket){
+	private void sendICMPPacket(byte type, byte code, Iface iface, IPv4 ipPacket){
 		// 1. set Ethernet header
 		Ethernet ether = new Ethernet();
 		// 1.1. set EtherType
@@ -182,7 +184,7 @@ public class Router extends Device
 		// 1.3. set Destination MAC: set to the MAC address of the next hop
 		int DestIP = ipPacket.getSourceAddress();
 		MACAddress nextHopMacAddr = findNextHopMACAddress(DestIP);
-		ether.setDestinationMACAddress(arpEntry.getMac().toBytes());
+		ether.setDestinationMACAddress(nextHopMacAddr.toBytes());
 
 		// 2. set IP header
 		IPv4 ip = new IPv4();
@@ -209,14 +211,14 @@ public class Router extends Device
 		byte[] byteArray = new byte[4 + origialIPHeaderLength + 8];
 		// 4.2. copy bytes from IpPacket
 		byte[] serializedIpPacket = ipPacket.serialize();
-		int serializedIpPacketLen = serializedIpPacket.length
+		int serializedIpPacketLen = serializedIpPacket.length;
 		for(int i = 0; i < origialIPHeaderLength + 8; i++){
 			if (i < serializedIpPacketLen) byteArray[4 + i] = serializedIpPacket[i];
-			else break
+			else break;
 		}
 
 		// 5. assemble the ICMP Packet
-		data.setData(byteArray)
+		data.setData(byteArray);
 		icmp.setPayload(data);
 		ip.setPayload(icmp);
 		ether.setPayload(ip);

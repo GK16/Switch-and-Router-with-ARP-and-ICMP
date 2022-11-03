@@ -98,15 +98,15 @@ public class Router extends Device
 		}
 
 		// 2. get IPv4 packet payload
-		IPv4 header = (IPv4) etherPacket.getPayload();
+		IPv4 ipPacket = (IPv4) etherPacket.getPayload();
 
 		// 3. check the checksum
-		short prevCksum = header.getChecksum();
-		header.resetChecksum();
+		short prevCksum = ipPacket.getChecksum();
+		ipPacket.resetChecksum();
 		// 3.1. borrow code from the serialize() method in the IPv4 class to compute the checksum.
 		//      if checksum == 0, serialize() will compute checksum
-		header.serialize();
-		short newCksum = header.getChecksum();
+		ipPacket.serialize();
+		short newCksum = ipPacket.getChecksum();
 		// 3.2. check
 		if(prevCksum != newCksum){
 			System.out.println("checksum did not match, drop it");
@@ -114,27 +114,28 @@ public class Router extends Device
 		}
 
 		// 4. handle Time-to-Live
-		byte oldTtl = header.getTtl();
-		header.setTtl((byte) (oldTtl - 1)); // decrement
-		if(header.getTtl() == 0){
+		byte oldTtl = ipPacket.getTtl();
+		ipPacket.setTtl((byte) (oldTtl - 1)); // decrement
+		if(ipPacket.getTtl() == 0){
 			System.out.println("TTL equals 0, time to die");
+			sendICMPPacket(11, 0, inIface, ipPacket)
 			return;
 		}
 		// 4.1. update checkout after TTL decrement
-		header.resetChecksum();
-		header.serialize();
+		ipPacket.resetChecksum();
+		ipPacket.serialize();
 
 		// 5. determine whether the packet is destined for one of the router’s interfaces.
 		Collection<Iface> ifaces = this.getInterfaces().values();
 		for(Iface i: ifaces){
-			if(i.getIpAddress() == header.getDestinationAddress()){
+			if(i.getIpAddress() == ipPacket.getDestinationAddress()){
 				System.out.println("packet’s destination IP address exactly matches one of the interface’s IP addresses, drop it");
 				return;
 			}
 		}
 
 		// 6. Forward the packet
-		RouteEntry route = routeTable.lookup(header.getDestinationAddress());
+		RouteEntry route = routeTable.lookup(ipPacket.getDestinationAddress());
 		// 6.1 check if route exists
 		if(route == null){
 			System.out.println("No matching route, drop it");
@@ -174,7 +175,7 @@ public class Router extends Device
 		return arpEntry.getMac();
 	}
 
-	private void sendICMPPacket(byte type, byte code, Iface iface, IPv4 ipPacket){
+	private void sendICMPPacket(int type, int code, Iface iface, IPv4 ipPacket){
 		// 1. set Ethernet header
 		Ethernet ether = new Ethernet();
 		// 1.1. set EtherType
@@ -200,9 +201,9 @@ public class Router extends Device
 		// 3. set ICMP header
 		ICMP icmp = new ICMP();
 		// 3.1. set ICMP type
-		icmp.setIcmpType(type);
+		icmp.setIcmpType((byte)type);
 		// 3.2. set ICMP code
-		icmp.setIcmpCode(code);
+		icmp.setIcmpCode((byte)code);
 
 		// 4. assemble the ICMP payload
 		Data data = new Data();

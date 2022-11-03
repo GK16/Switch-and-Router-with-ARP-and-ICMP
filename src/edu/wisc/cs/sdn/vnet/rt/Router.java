@@ -135,7 +135,7 @@ public class Router extends Device
 		RouteEntry route = routeTable.lookup(header.getDestinationAddress());
 		// 6.1 check if route exists
 		if(route == null){
-			System.out.println("No matching route, drop it");
+			Systcem.out.println("No matching route, drop it");
 			return;
 		}
 		// 6.2 obtain & set the new MAC address
@@ -150,4 +150,6 @@ public class Router extends Device
 		
 		/********************************************************************/
 	}
+
+	private
 }

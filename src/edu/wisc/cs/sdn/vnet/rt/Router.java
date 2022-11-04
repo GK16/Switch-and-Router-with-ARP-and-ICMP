@@ -118,7 +118,7 @@ public class Router extends Device
 		ipPacket.setTtl((byte) (oldTtl - 1)); // decrement
 		if(ipPacket.getTtl() == 0){
 			System.out.println("TTL equals 0, time to die");
-			sendICMPPacket(11, 0, inIface, ipPacket)
+			sendICMPPacket(11, 0, inIface, ipPacket);
 			return;
 		}
 		// 4.1. update checkout after TTL decrement
@@ -182,9 +182,22 @@ public class Router extends Device
 		ether.setEtherType(Ethernet.TYPE_IPv4);
 		// 1.2. set Source MAC to the MAC address of the out interface
 		ether.setSourceMACAddress(iface.getMacAddress().toBytes());
+
 		// 1.3. set Destination MAC: set to the MAC address of the next hop
 		int DestIP = ipPacket.getSourceAddress();
 		MACAddress nextHopMacAddr = findNextHopMACAddress(DestIP);
+
+		//if(destMAC == null) {
+		//	RouteEntry rEntry = routeTable.lookup(pktIn.getSourceAddress());
+		//	/* Find the next hop IP Address */
+		//	int nextHopIPAddress = rEntry.getGatewayAddress();
+		//	if(nextHopIPAddress == 0){
+		//		nextHopIPAddress = pktIn.getSourceAddress();
+		//	}
+		//	this.sendARPRequest(ether, inIface, rEntry.getInterface(), nextHopIPAddress);
+		//	return;
+		//}
+
 		ether.setDestinationMACAddress(nextHopMacAddr.toBytes());
 
 		// 2. set IP header
